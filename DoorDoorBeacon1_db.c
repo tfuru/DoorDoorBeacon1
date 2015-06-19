@@ -31,8 +31,8 @@ const UINT8 gatt_database[]= // Define GATT database
                            UUID_CHARACTERISTIC_DEVICE_NAME,
                            LEGATTDB_CHAR_PROP_READ,
                            LEGATTDB_PERM_READABLE,
-                           15),
-    'D','o','o','r','D','o','o','r','B','e','a','c','o','n','1',
+                           8),
+    'D','o','o','r','D','o','o','r',
 
     //<Name>Appearance</Name>
     //<Uuid>2A01</Uuid>
@@ -197,12 +197,12 @@ BOOL __write_handler(UINT16 handle, int len, UINT8 *attrPtr)
     {
         if (len > 1)
         {
-            ble_trace2("bad length:%d handle:%04x", len, handle);
+            ble_trace2("bad length:%d handle:%04x\n", len, handle);
         }
         else
         {
             //call custom on_write function
-            ble_trace1("write handle:%04x", handle);
+            ble_trace1("write handle:%04x\n", handle);
             res = on_write_doordoor_blink(len, attrPtr);
         }
     }
@@ -212,7 +212,7 @@ BOOL __write_handler(UINT16 handle, int len, UINT8 *attrPtr)
         if (__find_bonded_peer(doordoorbeacon1_remote_addr))
         {
             p_bonded->doordoor_blink_client_configuration = attrPtr[0] + (attrPtr[1] << 8);
-            ble_trace2("handle:%02x val:%04x", handle, p_bonded->doordoor_blink_client_configuration);
+            ble_trace2("handle:%02x val:%04x\n", handle, p_bonded->doordoor_blink_client_configuration);
             res = TRUE;
         }
     }
@@ -222,7 +222,7 @@ BOOL __write_handler(UINT16 handle, int len, UINT8 *attrPtr)
         if (__find_bonded_peer(doordoorbeacon1_remote_addr))
         {
             p_bonded->doordoor_button_client_configuration = attrPtr[0] + (attrPtr[1] << 8);
-            ble_trace2("handle:%02x val:%04x", handle, p_bonded->doordoor_button_client_configuration);
+            ble_trace2("handle:%02x val:%04x\n", handle, p_bonded->doordoor_button_client_configuration);
             res = TRUE;
         }
     }
@@ -234,7 +234,7 @@ BOOL store_in_db_generic_access_device_name(UINT8* p_value, UINT8 value_len)
 {
     BLEPROFILE_DB_PDU db_pdu;
     // Write value to the GATT DB
-    ble_trace2("write len:%d handle:%02x", value_len, HDLC_GENERIC_ACCESS_DEVICE_NAME_VALUE);
+    ble_trace2("write len:%d handle:%02x\n", value_len, HDLC_GENERIC_ACCESS_DEVICE_NAME_VALUE);
     memcpy(&db_pdu.pdu[0], p_value, value_len);
     db_pdu.len = value_len;
     bleprofile_WriteHandle(HDLC_GENERIC_ACCESS_DEVICE_NAME_VALUE, &db_pdu);
@@ -246,7 +246,7 @@ BOOL store_in_db_generic_access_appearance(UINT8* p_value, UINT8 value_len)
 {
     BLEPROFILE_DB_PDU db_pdu;
     // Write value to the GATT DB
-    ble_trace2("write len:%d handle:%02x", value_len, HDLC_GENERIC_ACCESS_APPEARANCE_VALUE);
+    ble_trace2("write len:%d handle:%02x\n", value_len, HDLC_GENERIC_ACCESS_APPEARANCE_VALUE);
     memcpy(&db_pdu.pdu[0], p_value, value_len);
     db_pdu.len = value_len;
     bleprofile_WriteHandle(HDLC_GENERIC_ACCESS_APPEARANCE_VALUE, &db_pdu);
@@ -261,7 +261,7 @@ BOOL store_in_db_doordoor_blink(UINT8* p_value, UINT8 value_len, BOOL write, BOO
     if (write)
     {
         // Write value to the GATT DB
-        ble_trace2("write len:%d handle:%02x", value_len, HDLC_DOORDOOR_BLINK_VALUE);
+        ble_trace2("write len:%d handle:%02x\n", value_len, HDLC_DOORDOOR_BLINK_VALUE);
         memcpy(&db_pdu.pdu[0], p_value, value_len);
         db_pdu.len = value_len;
         bleprofile_WriteHandle(HDLC_DOORDOOR_BLINK_VALUE, &db_pdu);
@@ -274,19 +274,19 @@ BOOL store_in_db_doordoor_blink(UINT8* p_value, UINT8 value_len, BOOL write, BOO
             // Exit if notify and indicate are not configured in the Client Configuration Descriptor
             if (0 == (p_bonded->doordoor_blink_client_configuration & (CCC_NOTIFICATION | CCC_INDICATION)))
             {
-                ble_trace1("don't notify handle:%02x", HDLC_DOORDOOR_BLINK_VALUE);
+                ble_trace1("don't notify handle:%02x\n", HDLC_DOORDOOR_BLINK_VALUE);
                 return TRUE;
             }
             // Just return FALSE if connection is down
             if (doordoorbeacon1_connection_handle == 0)
             {
-                ble_trace1("not connected handle:%02x", HDLC_DOORDOOR_BLINK_VALUE);
+                ble_trace1("not connected handle:%02x\n", HDLC_DOORDOOR_BLINK_VALUE);
                 return FALSE;
             }
             // Just return FALSE if we are waiting for confirmation
             if (doordoorbeacon1_indication_sent != 0)
             {
-                ble_trace1("wait confirmation handle:%02x", HDLC_DOORDOOR_BLINK_VALUE);
+                ble_trace1("wait confirmation handle:%02x\n", HDLC_DOORDOOR_BLINK_VALUE);
                 return FALSE;
             }
             //if write is not requested then we did't write the value. Read it
@@ -297,7 +297,7 @@ BOOL store_in_db_doordoor_blink(UINT8* p_value, UINT8 value_len, BOOL write, BOO
             // Notify property is true. If client has registered for notification
             if (p_bonded->doordoor_blink_client_configuration & CCC_NOTIFICATION)
             {
-                ble_trace2("notify len:%d handle:%02x", db_pdu.len, HDLC_DOORDOOR_BLINK_VALUE);
+                ble_trace2("notify len:%d handle:%02x\n", db_pdu.len, HDLC_DOORDOOR_BLINK_VALUE);
                 bleprofile_sendNotification(HDLC_DOORDOOR_BLINK_VALUE, (UINT8 *)db_pdu.pdu, db_pdu.len);
             }
             // Indicate property is true. If client has registered for indication,
@@ -305,7 +305,7 @@ BOOL store_in_db_doordoor_blink(UINT8* p_value, UINT8 value_len, BOOL write, BOO
             else
             {
                 doordoorbeacon1_indication_sent = 1;
-                ble_trace2("indicate len:%d handle=%02x", db_pdu.len, HDLC_DOORDOOR_BLINK_VALUE);
+                ble_trace2("indicate len:%d handle=%02x\n", db_pdu.len, HDLC_DOORDOOR_BLINK_VALUE);
                 bleprofile_sendIndication(HDLC_DOORDOOR_BLINK_VALUE, (UINT8 *)db_pdu.pdu, db_pdu.len, __indication_cfm);
             }
         }
@@ -321,7 +321,7 @@ BOOL store_in_db_doordoor_button(UINT8* p_value, UINT8 value_len, BOOL write, BO
     if (write)
     {
         // Write value to the GATT DB
-        ble_trace2("write len:%d handle:%02x", value_len, HDLC_DOORDOOR_BUTTON_VALUE);
+        ble_trace2("write len:%d handle:%02x\n", value_len, HDLC_DOORDOOR_BUTTON_VALUE);
         memcpy(&db_pdu.pdu[0], p_value, value_len);
         db_pdu.len = value_len;
         bleprofile_WriteHandle(HDLC_DOORDOOR_BUTTON_VALUE, &db_pdu);
@@ -334,20 +334,20 @@ BOOL store_in_db_doordoor_button(UINT8* p_value, UINT8 value_len, BOOL write, BO
             // Exit if notify and indicate are not configured in the Client Configuration Descriptor
             if (0 == (p_bonded->doordoor_button_client_configuration & (CCC_NOTIFICATION | CCC_INDICATION)))
             {
-                ble_trace1("don't notify handle:%02x", HDLC_DOORDOOR_BUTTON_VALUE);
+                ble_trace1("don't notify handle:%02x\n", HDLC_DOORDOOR_BUTTON_VALUE);
                 return TRUE;
             }
 
             // Just return FALSE if connection is down
             if (doordoorbeacon1_connection_handle == 0)
             {
-                ble_trace1("not connected handle:%02x", HDLC_DOORDOOR_BUTTON_VALUE);
+                ble_trace1("not connected handle:%02x\n", HDLC_DOORDOOR_BUTTON_VALUE);
                 return FALSE;
             }
             // Just return FALSE if we are waiting for confirmation
             if (doordoorbeacon1_indication_sent != 0)
             {
-                ble_trace1("wait confirmation handle:%02x", HDLC_DOORDOOR_BUTTON_VALUE);
+                ble_trace1("wait confirmation handle:%02x\n", HDLC_DOORDOOR_BUTTON_VALUE);
                 return FALSE;
             }
             //if write is not requested then we did't write the value. Read it
@@ -358,7 +358,7 @@ BOOL store_in_db_doordoor_button(UINT8* p_value, UINT8 value_len, BOOL write, BO
             // Notify property is true. If client has registered for notification
             if (p_bonded->doordoor_button_client_configuration & CCC_NOTIFICATION)
             {
-                ble_trace2("notify len:%d handle:%02x", db_pdu.len, HDLC_DOORDOOR_BUTTON_VALUE);
+                ble_trace2("notify len:%d handle:%02x\n", db_pdu.len, HDLC_DOORDOOR_BUTTON_VALUE);
                 bleprofile_sendNotification(HDLC_DOORDOOR_BUTTON_VALUE, (UINT8 *)db_pdu.pdu, db_pdu.len);
             }
             // Indicate property is true. If client has registered for indication,
@@ -366,7 +366,7 @@ BOOL store_in_db_doordoor_button(UINT8* p_value, UINT8 value_len, BOOL write, BO
             else
             {
                 doordoorbeacon1_indication_sent = 1;
-                ble_trace2("indicate len:%d handle=%02x", db_pdu.len, HDLC_DOORDOOR_BUTTON_VALUE);
+                ble_trace2("indicate len:%d handle=%02x\n", db_pdu.len, HDLC_DOORDOOR_BUTTON_VALUE);
                 bleprofile_sendIndication(HDLC_DOORDOOR_BUTTON_VALUE, (UINT8 *)db_pdu.pdu, db_pdu.len, __indication_cfm);
             }
         }

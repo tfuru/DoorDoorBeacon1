@@ -15,15 +15,12 @@
 
 #include "doordoorbeacon1_db.h"
 
-//GOIPに変化があった場合コールされる
-void doordoorbeacon1_gpio_interrupt_handler(void* unsued, UINT8 gpio);
-
 /******************************************************
  *                     Constants
  ******************************************************/
 
 #define DOORDOORBEACON1_FINE_TIMER           0
-#define DOORDOORBEACON1_DEVICE_NAME          "DoorDoorBeacon1"
+#define DOORDOORBEACON1_DEVICE_NAME          "DDB1"
 #define DOORDOORBEACON1_DEVICE_APPEARENCE    0
 #define DOORDOORBEACON1_MAIN_SERVICE_UUID    0
 #define DOORDOORBEACON1_MAIN_CHAR_UUID       0
@@ -56,6 +53,9 @@ static void doordoorbeacon1_encryption_changed( HCI_EVT_HDR *evt );
 static int  doordoorbeacon1_write_handler( LEGATTDB_ENTRY_HDR *p );
 static void doordoorbeacon1_interrupt_handler( UINT8 value );
 
+//GOIPに変化があった場合コールされる
+static void doordoorbeacon1_gpio_interrupt_handler(void* unsued, UINT8 gpio);
+
 /******************************************************
  *               Variables Definitions
  ******************************************************/
@@ -81,7 +81,7 @@ const BLE_PROFILE_CFG doordoorbeacon1_cfg =
     /*.test_enable                    =*/ 1,    // TEST MODE is enabled when 1
     /*.tx_power_level                 =*/ 0x04, // dbm
     /*.con_idle_timeout               =*/ 30,   // second  0-> no timeout
-    /*.powersave_timeout              =*/ 0,    // second  0-> no timeout
+    /*.powersave_timeout              =*/ 60,   // second  0-> no timeout
     /*.hdl                            =*/ {DOORDOORBEACON1_MAIN_CHAR_HANDLE, 0x00, 0x00, 0x00, 0x00}, // [HANDLE_NUM_MAX];
     /*.serv                           =*/ {DOORDOORBEACON1_MAIN_SERVICE_UUID, 0x00, 0x00, 0x00, 0x00},
     /*.cha                            =*/ {DOORDOORBEACON1_MAIN_CHAR_UUID, 0x00, 0x00, 0x00, 0x00},
@@ -154,7 +154,7 @@ void doordoorbeacon1_create(void)
 	extern UINT8 bleprofile_adv_num;
 	extern UINT8 bleprofile_scanrsp_num;
 
-    ble_trace0("create()");
+    ble_trace0("create()\n");
     ble_trace0(bleprofile_p_cfg->ver);
 
 	bleprofile_adv_num = 0x0;
@@ -204,6 +204,7 @@ void doordoorbeacon1_create(void)
 		adv[0].val     = ADV_FLAGS;
 		adv[0].data[0] = LE_LIMITED_DISCOVERABLE | BR_EDR_NOT_SUPPORTED;
 
+		// service uuid 128
 		adv[1].len     = 16 + 1;
 		adv[1].val     = ADV_SERVICE_UUID128_COMP;
 		memcpy(adv[1].data, &doordoorbeacon1_uuid_main_vsc_service[0], 16);
@@ -213,12 +214,16 @@ void doordoorbeacon1_create(void)
         adv[2].val     = ADV_TX_POWER_LEVEL;
         adv[2].data[0] = bleprofile_p_cfg->tx_power_level;
 
+        //ADV_SERVICE_DATA
+        //ADV_MANUFACTURER_DATA
+
+        bleprofile_GenerateADVData(adv, sizeof adv);
+
 		// name
         scr[0].len      = strlen(bleprofile_p_cfg->local_name) + 1;
         scr[0].val      = ADV_LOCAL_NAME_COMP;
         memcpy(scr[0].data, bleprofile_p_cfg->local_name, scr[0].len - 1);
 
-		bleprofile_GenerateADVData(adv, 3);
         bleprofile_GenerateScanRspData(scr, 1);
     }
 
@@ -240,6 +245,8 @@ void doordoorbeacon1_create(void)
     // Now configure the pin. We will use both edges so that we know when the upper and lower thresholds are crossed.
     gpio_configurePin(BUTTON_INTERRUPT_PORT, BUTTON_INTERRUPT_PIN, GPIO_EN_INT_BOTH_EDGE | GPIO_PULL_UP, GPIO_PIN_OUTPUT_LOW);
 
+    //起動直後は DEEP SLEEP にしてみる
+    //bleprofile_PrepareHidOff();
 }
 
 // Connection up callback function is called on every connection establishment
@@ -251,7 +258,7 @@ void doordoorbeacon1_connection_up(void)
     // Save address of the connected device and print it out.
     memcpy(doordoorbeacon1_remote_addr, bda, sizeof(doordoorbeacon1_remote_addr));
 
-    ble_trace3("connection_up: %08x%04x h=%d",
+    ble_trace3("connection_up: %08x%04x h=%d\n",
                 (doordoorbeacon1_remote_addr[5] << 24) + (doordoorbeacon1_remote_addr[4] << 16) +
                 (doordoorbeacon1_remote_addr[3] << 8) + doordoorbeacon1_remote_addr[2],
                 (doordoorbeacon1_remote_addr[1] << 8) + doordoorbeacon1_remote_addr[0],
@@ -274,11 +281,11 @@ void doordoorbeacon1_connection_up(void)
     {
         if (emconninfo_deviceBonded())
         {
-            ble_trace0("device bonded");
+            ble_trace0("device bonded\n");
         }
         else
         {
-            ble_trace0("device not bonded");
+            ble_trace0("device not bonded\n");
             lesmp_sendSecurityRequest();
         }
     }
@@ -287,14 +294,14 @@ void doordoorbeacon1_connection_up(void)
 // Connection down callback
 void doordoorbeacon1_connection_down(void)
 {
-    ble_trace1("connection_down:handle:%d", doordoorbeacon1_connection_handle);
+    ble_trace1("connection_down:handle:%d\n", doordoorbeacon1_connection_handle);
 
     doordoorbeacon1_connection_handle = 0;
 
     // If disconnection was caused by the peer, start low advertisements
     bleprofile_Discoverable(LOW_UNDIRECTED_DISCOVERABLE, NULL);
 
-    ble_trace2("ADV start: %08x%04x",
+    ble_trace2("ADV start: %08x%04x\n",
                   (doordoorbeacon1_remote_addr[5] << 24 ) + (doordoorbeacon1_remote_addr[4] <<16) +
                   (doordoorbeacon1_remote_addr[3] << 8 ) + doordoorbeacon1_remote_addr[2],
                   (doordoorbeacon1_remote_addr[1] << 8 ) + doordoorbeacon1_remote_addr[0]);
@@ -302,19 +309,24 @@ void doordoorbeacon1_connection_down(void)
 
 // Callback function indicates to the application that advertising has stopped.
 // restart advertisement if needed
+//何の接続も無かった場合ココが実行される
 void doordoorbeacon1_advertisement_stopped(void)
 {
-    ble_trace0("ADV stop!!!!");
+    ble_trace0("ADV stop!!!!\n");
 
 	// If disconnection was caused by the peer, start low advertisements
     bleprofile_Discoverable(LOW_UNDIRECTED_DISCOVERABLE, NULL);
+
+    //DeepSleep にしてみる
+    bleapputils_delayUs(500);
+    bleprofile_PrepareHidOff();
 }
 
 // Process SMP bonding result.  If pairing is successful with the central device,
 // save its BDADDR in the NVRAM and initialize associated data
 void doordoorbeacon1_smp_bond_result(LESMP_PARING_RESULT  result)
 {
-    ble_trace1("smp_bond_result %02x", result);
+    ble_trace1("smp_bond_result %02x\n", result);
 
     if (result == LESMP_PAIRING_RESULT_BONDED)
     {
@@ -331,7 +343,7 @@ void doordoorbeacon1_smp_bond_result(LESMP_PARING_RESULT  result)
 
         //now write hostinfo into NVRAM
         writtenbyte = bleprofile_WriteNVRAM(VS_BLE_HOST_LIST, sizeof(doordoorbeacon1_hostinfo), (UINT8 *)&doordoorbeacon1_hostinfo);
-        ble_trace1("NVRAM write:%04x", writtenbyte);
+        ble_trace1("NVRAM write:%04x\n", writtenbyte);
     }
 }
 
@@ -340,7 +352,7 @@ void doordoorbeacon1_encryption_changed(HCI_EVT_HDR *evt)
 {
     UINT8 *bda = emconninfo_getPeerPubAddr();
 
-    ble_trace2("encryption changed %08x%04x",
+    ble_trace2("encryption changed %08x%04x\n",
                 (bda[5] << 24) + (bda[4] << 16) +
                 (bda[3] << 8) + bda[2],
                 (bda[1] << 8) + bda[0]);
@@ -361,7 +373,7 @@ int doordoorbeacon1_write_handler(LEGATTDB_ENTRY_HDR *p)
     UINT8  *attrPtr = legattdb_getAttrValue(p);
     BOOL changed;
 
-    ble_trace1("write_handler: handle %04x", handle);
+    ble_trace1("write_handler: handle %04x\n", handle);
 
     changed = __write_handler(handle, len, attrPtr);
 
@@ -378,7 +390,7 @@ int doordoorbeacon1_write_handler(LEGATTDB_ENTRY_HDR *p)
     if (changed)
     {
 		writtenbyte = bleprofile_WriteNVRAM(VS_BLE_HOST_LIST, sizeof(doordoorbeacon1_hostinfo), (UINT8 *)&doordoorbeacon1_hostinfo);
-		ble_trace1("NVRAM write:%04x", writtenbyte);
+		ble_trace1("NVRAM write:%04x\n", writtenbyte);
     }
     return 0;
 }
@@ -392,7 +404,7 @@ int doordoorbeacon1_write_handler(LEGATTDB_ENTRY_HDR *p)
 void doordoorbeacon1_interrupt_handler(UINT8 value)
 {
     // ToDo: handle the interrupts here.
-    ble_trace1("interrupt_handler:handle:%d", value);
+    ble_trace1("interrupt_handler:handle:%d\n", value);
 }
 
 // Process indication confirmation.  if client service indication, each indication
@@ -438,10 +450,11 @@ void doordoorbeacon1_gpio_interrupt_handler(void* unsued, UINT8 gpio){
 		//通知は必要なさそう
 		//bleprofile_sendNotification(HDLC_DOORDOOR_BUTTON_VALUE, &button_level, 1);
 		if(SWITCH_TOGGLE == FALSE){
+			//ボタンを押した時
 			SWITCH_TOGGLE = TRUE;
 		}
 		else{
-			//ボタンを離した場合 0
+			//ボタンを離した場合
 			SWITCH_TOGGLE = FALSE;
 		}
 		break;
